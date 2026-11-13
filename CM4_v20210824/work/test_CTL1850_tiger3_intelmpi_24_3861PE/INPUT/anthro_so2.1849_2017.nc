@@ -1,0 +1,1 @@
+/scratch/gpfs/GEOCLIM/ytingchen/CM4_mwex/input/anthro_so2.1849_2017.nc

@@ -1,0 +1,1 @@
+/scratch/gpfs/GEOCLIM/ytingchen/CM4_mwex/input/carbon_aerosol_emission.nc

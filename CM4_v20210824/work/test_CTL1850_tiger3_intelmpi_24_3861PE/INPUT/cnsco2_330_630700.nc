@@ -1,0 +1,1 @@
+/scratch/gpfs/GEOCLIM/ytingchen/CM4_mwex/input/cnsco2_330_630700.nc

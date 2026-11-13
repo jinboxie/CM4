@@ -1,0 +1,1 @@
+/scratch/gpfs/GEOCLIM/ytingchen/CM4_mwex/input/cns_n2o_375_HITRAN2012_12001400_495lyr.nc

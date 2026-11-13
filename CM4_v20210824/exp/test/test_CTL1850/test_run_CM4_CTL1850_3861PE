@@ -1,0 +1,307 @@
+#!/bin/csh -f
+#SBATCH --account=gvecchi  # account info
+##SBATCH --ntasks=3861
+#SBATCH --nodes=35  # node count
+#SBATCH --ntasks-per-node=112
+#SBATCH --ntasks-per-socket=56
+#SBATCH --exclusive
+#SBATCH -t 01:00:00
+#SBATCH --exclude=tiger-g01c1n5
+#SBATCH --mail-type=all
+#SBATCH --mail-user=wenchang@princeton.edu
+## Sends mail when process begins, and when it ends. 
+## Make sure you define your email
+##SBATCH --mail-type=begin
+##SBATCH --mail-type=end
+#
+
+set echo 
+setenv OMP_NUM_THREADS 1
+#--------------------------------------------------------------------------------
+# platform environment
+set npes = 3861 # Number of processors used for the model
+set expdir = $cwd # The root directory of the script (WY)
+set cont_scrpt = $expdir/test_run_CM4_CTL1850_ifort_3861PE # continue script will be the current script (WY)
+set site = princeton # a unique identifier for your site
+set platform  = tiger3_intelmpi_24 # A unique identifier for your platform.
+set Root = /scratch/gpfs/GEOCLIM/wenchang/tiger3/CM4/CM4_v20210824 # The root directory where the release package was extracted.
+source $Root/exec_$platform/env.$platform.csh
+module list
+setenv MAIN_PROGRAM coupler_main.o
+#---------------------------------------------------------------------------------
+# model and experiment
+set model_executable = $Root/exec_$platform/cm4.x  # Path to model executable
+set expname = test_CTL1850_${platform}_${npes}PE             # Experiment name
+set workdir = /scratch/gpfs/GEOCLIM/$USER/tiger3/CM4/CM4_v20210824/work/$expname     # Where model is run and model output is put 
+set num_executions = 1 # Number of times the model is run. Each run restarts from previous run.
+set stop_date = 00010201
+#---------------------------------------------------------------------------------
+set namelist   = $expdir/input.nml # path to namelist file  (contains all namelists)
+set diagtable  = $Root/exp/diag_table   # path to diagnositics table  (specifies fields and files for diagnostic output)
+#set diagtable  = $expdir/diag_table   # path to diagnositics table  (specifies fields and files for diagnostic output)
+set fieldtable = $Root/exp/field_table  # path to field table (specifies tracers)
+#set fieldtable = $expdir/field_table  # path to field table (specifies tracers)
+set datatable  = $Root/exp/data_table   # path to data table (specifies data files used by data_override)
+#set datatable  = $expdir/data_table   # path to data table (specifies data files used by data_override)
+#--------------------------------------------------------------------------------
+# The gaea locations of the input data sets are listed below
+# Modified to Tiger locations by GAV - 31-May-2017
+# Modified to AM4 on tigercpu by WY - Nov. 20, 2018
+#set input_data_dir = /scratch/gpfs/GEOCLIM/wenchang/modelInput/AM4/input/AM4.input_data #model input data on tiger3
+#set input_data_dir = /scratch/gpfs/GEOCLIM/wenchang/modelInput/ESM4/ESM4_rundir/INPUT
+set input_data_dir = /scratch/gpfs/GEOCLIM/ytingchen/CM4_mwex/input
+#set gridSpec = $Root/mosaics/bf_mosaics_v2.tar 
+#set initCond = $Root/initcond/bf_initcond_v4.tar
+#set sst_data = /scratch/gpfs/GEOCLIM/wenchang/modelInput/AM4/input_wy/From_AM4_default_input/v202310/hadisst_sst.clim.1986-2005.nc
+#set ice_data = /scratch/gpfs/GEOCLIM/wenchang/modelInput/AM4/input_wy/From_AM4_default_input/v202310/hadisst_ice.clim.1986-2005.nc
+#--------------------------------------------------------------------------------
+# The input data should also be put here: 
+# ftp://ftp.gfdl.noaa.gov/pub/projects/CM2.5_and_FLOR/FLOR_input_data.tar.gz
+# ftp://nomads.gfdl.noaa.gov/users/Ming.Zhao/AM4Documentation/GFDL-AM4.0/inputData/
+#--------------------------------------------------------------------------------
+# post-processing tools
+set mppnccombine  = /scratch/gpfs/GEOCLIM/wenchang/tiger3/FRE-NCtools/v20241022/build/postprocessing/mppnccombine/mppnccombine # Path to mppnccombine
+set mppnccombine_ncc = /scratch/gpfs/GEOCLIM/wenchang/tiger3/FRE-NCtools/v20241022/build/postprocessing/land_utils/combine-ncc # Path to combine-ncc
+set land_decompress = /scratch/gpfs/GEOCLIM/wenchang/tiger3/FRE-NCtools/v20241022/build/postprocessing/land_utils/decompress-ncc # Path to decompress-ncc
+set fregrid       = /scratch/gpfs/GEOCLIM/wenchang/tiger3/FRE-NCtools/v20241022/build/tools/fregrid/fregrid_parallel # Path to fregrid
+set time_stamp    = /scratch/gpfs/GEOCLIM/wenchang/tiger3/bin/time_stamp.csh  # Path to timestamp.csh
+
+#--------------------------------------------------------------------------------
+# setup directory structure
+if ( ! -d $workdir ) then
+    mkdir -p $workdir
+endif
+if ( ! -e $expdir/work ) then
+    ln -s $workdir $expdir/work
+endif
+cd $workdir
+foreach d ( INPUT RESTART ASCII POSTP HISTORY )
+    if ( ! -d $d ) then
+        mkdir $d
+    endif
+end
+#--------------------------------------------------------------------------------
+# get input data and executable
+if ( ! -f input.nml ) then
+    cp $namelist   input.nml
+endif
+if ( ! -f diag_table ) then
+    cp $diagtable  diag_table
+endif
+if ( ! -f field_table ) then
+    cp $fieldtable field_table
+endif
+if ( ! -f data_table ) then
+    cp $datatable  data_table
+endif
+if ( ! -f $model_executable:t ) then
+    cp $model_executable .
+endif
+#--------------------------------------------------------------------------------
+# link the input data files
+cd $workdir/INPUT
+# WY: get input data and initial condition files for the first run.
+if (! -e coupler.res ) then
+    #foreach f ($input_data_dir/*) # link the input data files
+    #    if ( ! -e $f:t ) then
+    #        ln -s $f .
+    #    endif
+    #end
+    ln -s $input_data_dir/* .
+    #sis pes same as atmos
+    #rm SIS_layout
+    #ln -s /scratch/gpfs/GEOCLIM/wenchang/modelInput/ESM4/input_wy/SIS_layout_768PE SIS_layout
+    ##rm fv_tracer IC files, trying to avoid the checksum init fail
+    #rm fv_tracer.res.tile[1-6].nc
+endif
+#tar xvf $gridSpec
+#tar xvf $initCond
+#tar xvf $input_data
+#
+
+#--------------------------------------------------------------------------------
+# set the inital end_date_name and irun
+cd $workdir
+if ( -f ASCII/time_stamp.out ) then
+    cd ASCII
+    set end_date_name = `$time_stamp -ef digital`
+    cd $workdir
+else
+    set end_date_name = 00010101
+endif
+set irun = 1
+#--------------------------------------------------------------------------------
+# start the model running and post-processing loop
+while ( $irun <= $num_executions )
+if ( $end_date_name >= $stop_date ) then
+    echo "model has reached its end date $stop_date"
+    exit 0
+endif
+#--------------------------------------------------------------------------------
+# run the model with srun GAV 31-May-2017
+srun -n $npes ./$model_executable:t
+if ($status != 0) then
+  echo "Error in execution of $cwd/$model_executable:t"
+  exit 1
+endif
+#--------------------------------------------------------------------------------
+set date_name = `$time_stamp -bf digital`
+# GAV: Sets the end of run name
+set end_date_name = `$time_stamp -ef digital`
+foreach outfile (logfile.*.out diag_integral.out time_stamp.out)
+  mv $outfile $date_name.$outfile
+end
+#--------------------------------------------------------------------------------
+# combine distributed diagnostic files and remove the uncombined files
+# no need to add time stamp to the file names for AM4
+foreach ncfile (`/bin/ls *.nc.0000`)
+  $mppnccombine -64 -h 16384 -m $ncfile:r
+  if ($status == 0) then
+    rm -f $ncfile:r.[0-9][0-9][0-9][0-9]
+    #mv $ncfile:r $date_name.$ncfile:r # no need for AM4
+  else
+    echo "Error in execution of $mppnccombine while working on $ncfile:r"
+    exit 1
+  endif
+end
+#--------------------------------------------------------------------------------
+# combine the un-structured (or compressed) distributed diagnostic files and remove the uncombined files
+# no need to add time stamp to the file names for AM4
+foreach ncfile (`/bin/ls *.nc.0001`)
+  $mppnccombine_ncc $ncfile:r.[0-9][0-9][0-9][0-9] $ncfile:r
+  if ($status == 0) then
+    rm -f $ncfile:r.[0-9][0-9][0-9][0-9]
+    # convert the un-structured (or compressed) files to structured (decompressed) files
+    $land_decompress $ncfile:r $ncfile:r.decompressed
+    if ($status == 0) then
+        mv $ncfile:r.decompressed $ncfile:r
+    else
+        echo "Error in execution of $land_decompress while working on $ncfile:r"
+        exit 1
+    endif
+  else
+    echo "Error in execution of $mppnccombine_ncc while working on $ncfile:r"
+    exit 1
+  endif
+end
+#--------------------------------------------------------------------------------
+# Add the time stamp to remaining diagnostic files (those not distributed), no need for AM4
+#mv atmos_scalar.nc $date_name.atmos_scalar.nc
+#mv ocean_scalar.nc $date_name.ocean_scalar.nc
+#--------------------------------------------------------------------------------
+cd $workdir/RESTART
+#--------------------------------------------------------------------------------
+#combine icebergs restart files first
+$mppnccombine_ncc icebergs.res.nc.[0-9][0-9][0-9][0-9] icebergs.res.nc 
+if ($status == 0) then
+  rm -f icebergs.res.nc.[0-9][0-9][0-9][0-9]
+else
+  echo "Error in execution of $mppnccombine_ncc while working on icebergs.res.nc"
+  exit 1
+endif
+#--------------------------------------------------------------------------------
+# combine regular restart files and remove the uncombined files
+foreach ncfile (`/bin/ls *.nc.0000`)
+  $mppnccombine -64 -h 16384 -m $ncfile:r
+  if ($status == 0) then
+    rm -f $ncfile:r.[0-9][0-9][0-9][0-9]
+  else
+    echo "Error in execution of $mppnccombine while working on $ncfile:r"
+    exit 1
+  endif
+end
+#--------------------------------------------------------------------------------
+# combine compressed restart files and remove the uncombined files
+foreach ncfile (`/bin/ls *.nc.0001`)
+  $mppnccombine_ncc $ncfile:r.[0-9][0-9][0-9][0-9] $ncfile:r
+  if ($status == 0) then
+    rm -f $ncfile:r.[0-9][0-9][0-9][0-9]
+  else
+    echo "Error in execution of $mppnccombine_ncc while working on $ncfile:r"
+    exit 1
+  endif
+end
+#--------------------------------------------------------------------------------
+# Interpolate diagnostic data to lat-lon grid
+cd $workdir
+set diagFiles = (`/bin/ls -1 $date_name.*.tile1.nc | grep -v grid_spec | grep -v horizontal_grid.tile`)
+set latlonfiles = ()
+# copy the grid files needed in the interpolation from the INPUT dir if they are not in the $workdir
+if ( !  -f  C96_mosaic.nc ) then
+    cp INPUT/C96_mosaic.nc . 
+endif
+foreach grid_file (INPUT/C96_grid.tile?.nc)
+    if ( ! -f $grid_file:t ) then
+        cp $grid_file $grid_file:t
+    endif
+end
+foreach File ($diagFiles)
+  set variables = (`ncdump -h $File | grep 'grid_yt, grid_xt' | awk '{print $2}' | cut -d\( -f1`)
+  set variables = `echo $variables |sed 's/ /,/g'`
+  set basename = $File:r:r
+  srun -n 32 $fregrid --input_mosaic C96_mosaic.nc \
+                      --input_file $basename \
+                      --interp_method conserve_order1 \
+                      --remap_file fregrid_remap_file \
+                      --nlon 288 --nlat 180 \
+                      --scalar_field $variables
+  if ($status != 0) then
+    echo "Error in execution of fregrid while working on $basename"
+    exit 1
+  endif
+  set latlonfiles = ($latlonfiles $basename.nc)
+end
+unset echo
+echo 'Fields interpolated to lat-lon grid exist in these files:'
+foreach File ($latlonfiles)
+  ls -l $cwd/$File
+end
+set echo
+
+# GAV
+# 
+# This copies History, Postprocessed and Ascii output to their directories
+#
+mv $date_name.*.tile[123456].nc HISTORY/.
+mv $date_name.*.nc POSTP/.
+cp $date_name.time_stamp.out ASCII/time_stamp.out # keep a copy of the time_stamp.out in the ASCII dir for use in the next loop
+mv $date_name.*.out ASCII/.
+#
+#--------------------------------------------------------------------------------
+# Prepare to run the model again
+/bin/rm INPUT/*.res \
+        INPUT/*.res.nc \
+        INPUT/*.res.nc.[0-9][0-9][0-9][0-9] \
+        INPUT/*.res.tile?.nc \
+        INPUT/*.res.tile?.nc.[0-9][0-9][0-9][0-9]
+#
+# GAV: This saves the restart file in the RESTART directory,
+# with the date of the end of current segment as name
+cd $workdir/RESTART 
+tar cf $end_date_name.tar *.res \
+   *.res.nc \
+   *.res.nc.[0-9][0-9][0-9][0-9] \
+   *.res.tile?.nc \
+   *.res.tile?.nc.[0-9][0-9][0-9][0-9]
+cd $workdir
+#
+mv RESTART/*.res \
+   RESTART/*.res.nc \
+   RESTART/*.res.nc.[0-9][0-9][0-9][0-9] \
+   RESTART/*.res.tile?.nc \
+   RESTART/*.res.tile?.nc.[0-9][0-9][0-9][0-9] \
+   INPUT
+if ( $end_date_name >= $stop_date ) then
+    echo "model has reached its end date $stop_date"
+    exit 0
+endif
+#--------------------------------------------------------------------------------
+@ irun ++
+end
+echo 'run script successfully completed'
+#
+# GAV Submit next run
+echo 'next script being submitted'
+cd $expdir
+sbatch $cont_scrpt
+exit 0

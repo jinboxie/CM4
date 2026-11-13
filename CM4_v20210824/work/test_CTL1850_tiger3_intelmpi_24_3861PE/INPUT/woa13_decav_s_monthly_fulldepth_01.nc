@@ -1,0 +1,1 @@
+/scratch/gpfs/GEOCLIM/ytingchen/CM4_mwex/input/woa13_decav_s_monthly_fulldepth_01.nc

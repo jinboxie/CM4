@@ -1,0 +1,1 @@
+/scratch/gpfs/GEOCLIM/ytingchen/CM4_mwex/input/tidal_amplitude_TPXO9_OM4p25.v20210125.nc

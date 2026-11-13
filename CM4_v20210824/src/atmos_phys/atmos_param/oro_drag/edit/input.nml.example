@@ -1,0 +1,25 @@
+ &damping_driver_nml
+    do_oro_drag = .true.
+    ! keep your existing settings; with do_topo_drag=.true. as well,
+    ! set do_od_ls=.false. below to avoid double-counting orographic GWD
+/
+
+ &oro_drag_nml
+    do_od_ls = .true.
+    do_od_bl = .true.
+    do_od_ss = .true.
+    do_od_fd = .false.
+    od_ls_ncleff  = 3.0
+    od_bl_ncd     = 3.0
+    od_ss_sncleff = 1.0
+    oro_drag_file = 'INPUT/oro_drag.nc'   ! read as INPUT/oro_drag.tile1..6.nc
+/
+
+# diag_table lines
+ "oro_drag", "udt_oro",      "udt_oro",      "atmos_month", "all", .true., "none", 2
+ "oro_drag", "vdt_oro",      "vdt_oro",      "atmos_month", "all", .true., "none", 2
+ "oro_drag", "tdt_diss_oro", "tdt_diss_oro", "atmos_month", "all", .true., "none", 2
+ "oro_drag", "taux_od_ls",   "taux_od_ls",   "atmos_month", "all", .true., "none", 2
+ "oro_drag", "taux_od_bl",   "taux_od_bl",   "atmos_month", "all", .true., "none", 2
+ "oro_drag", "taux_od_ss",   "taux_od_ss",   "atmos_month", "all", .true., "none", 2
+ "oro_drag", "od_sgh",       "od_sgh",       "atmos_static","all", .false.,"none", 2

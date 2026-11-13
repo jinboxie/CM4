@@ -1,0 +1,1 @@
+/scratch/gpfs/GEOCLIM/ytingchen/CM4_mwex/input/C192_mosaic_tile4XC192_mosaic_tile4.nc

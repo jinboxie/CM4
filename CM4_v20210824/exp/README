@@ -1,0 +1,1 @@
+rsync -avhP /scratch/gpfs/GEOCLIM/ytingchen/CM4_mwex/CM4_piControl_c192_OM4p25/*_table .

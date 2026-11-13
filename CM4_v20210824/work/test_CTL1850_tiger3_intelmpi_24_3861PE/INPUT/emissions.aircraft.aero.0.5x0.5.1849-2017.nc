@@ -1,0 +1,1 @@
+/scratch/gpfs/GEOCLIM/ytingchen/CM4_mwex/input/emissions.aircraft.aero.0.5x0.5.1849-2017.nc
